@@ -317,7 +317,7 @@ def ui_full(launch_kwargs):
             """
         )
 
-        interface.queue().launch(**launch_kwargs)
+        interface.queue().launch(**launch_kwargs, share=True)
 
 
 def ui_batched(launch_kwargs):
