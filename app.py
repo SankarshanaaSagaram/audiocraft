@@ -135,6 +135,42 @@ def _do_predictions(texts, melodies, duration, progress=False, **gen_kwargs):
     print("batch finished", len(texts), time.time() - be)
     print("Tempfiles currently stored: ", len(file_cleaner.files))
     return res
+    for melody in melodies:
+        if melody is None:
+            processed_melodies.append(None)
+        else:
+            sr, melody = melody[0], torch.from_numpy(melody[1]).to(MODEL.device).float().t()
+            if melody.dim() == 1:
+                melody = melody[None]
+            melody = melody[..., :int(sr * duration)]
+            melody = convert_audio(melody, sr, target_sr, target_ac)
+            processed_melodies.append(melody)
+
+    if any(m is not None for m in processed_melodies):
+        outputs = MODEL.generate_with_chroma(
+            descriptions=texts,
+            melody_wavs=processed_melodies,
+            melody_sample_rate=target_sr,
+            progress=progress,
+        )
+    else:
+        outputs = MODEL.generate(texts, progress=progress)
+
+    outputs = outputs.detach().cpu().float()
+    out_files = []
+    for output in outputs:
+        with NamedTemporaryFile("wb", suffix=".wav", delete=False) as file:
+            audio_write(
+                file.name, output, MODEL.sample_rate, strategy="loudness",
+                loudness_headroom_db=16, loudness_compressor=True, add_suffix=False)
+            out_files.append(pool.submit(make_waveform, file.name))
+            file_cleaner.add(file.name)
+    res = [out_file.result() for out_file in out_files]
+    for file in res:
+        file_cleaner.add(file)
+    print("batch finished", len(texts), time.time() - be)
+    print("Tempfiles currently stored: ", len(file_cleaner.files))
+    return res, res2
 
 
 def predict_batched(texts, melodies):
@@ -212,9 +248,10 @@ def ui_full(launch_kwargs):
                     cfg_coef = gr.Number(label="Classifier Free Guidance", value=3.0, interactive=True)
             with gr.Column():
                 output = gr.Video(label="Generated Music")
+                output2 = gr.Video(label="Alternate Generated Music")
         submit.click(predict_full,
                      inputs=[model, text, melody, duration, topk, topp, temperature, cfg_coef],
-                     outputs=[output])
+                     outputs=[output,output2])
         radio.change(toggle_audio_src, radio, [melody], queue=False, show_progress=False)
         gr.Examples(
             fn=predict_full,
@@ -246,7 +283,7 @@ def ui_full(launch_kwargs):
                 ],
             ],
             inputs=[text, melody, model],
-            outputs=[output]
+            outputs=[output,output2]
         )
         gr.Markdown(
             """
@@ -312,8 +349,9 @@ def ui_batched(launch_kwargs):
                     submit = gr.Button("Generate")
             with gr.Column():
                 output = gr.Video(label="Generated Music")
+                output2 = gr.Video(label="Alternate Generated Music")
         submit.click(predict_batched, inputs=[text, melody],
-                     outputs=[output], batch=True, max_batch_size=MAX_BATCH_SIZE)
+                     outputs=[output,output2], batch=True, max_batch_size=MAX_BATCH_SIZE)
         radio.change(toggle_audio_src, radio, [melody], queue=False, show_progress=False)
         gr.Examples(
             fn=predict_batched,
@@ -340,7 +378,7 @@ def ui_batched(launch_kwargs):
                 ],
             ],
             inputs=[text, melody],
-            outputs=[output]
+            outputs=[output,output2]
         )
         gr.Markdown("""
         ### More details
