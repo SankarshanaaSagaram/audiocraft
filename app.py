@@ -134,7 +134,7 @@ def _do_predictions(texts, melodies, duration, progress=False, **gen_kwargs):
         file_cleaner.add(file)
     print("batch finished", len(texts), time.time() - be)
     print("Tempfiles currently stored: ", len(file_cleaner.files))
-    return res
+    #return res
     for melody in melodies:
         if melody is None:
             processed_melodies.append(None)
@@ -165,8 +165,8 @@ def _do_predictions(texts, melodies, duration, progress=False, **gen_kwargs):
                 loudness_headroom_db=16, loudness_compressor=True, add_suffix=False)
             out_files.append(pool.submit(make_waveform, file.name))
             file_cleaner.add(file.name)
-    res = [out_file.result() for out_file in out_files]
-    for file in res:
+    res2 = [out_file.result() for out_file in out_files]
+    for file in res2:
         file_cleaner.add(file)
     print("batch finished", len(texts), time.time() - be)
     print("Tempfiles currently stored: ", len(file_cleaner.files))
@@ -178,7 +178,8 @@ def predict_batched(texts, melodies):
     texts = [text[:max_text_length] for text in texts]
     load_model('melody')
     res = _do_predictions(texts, melodies, BATCHED_DURATION)
-    return [res]
+    res2 = _do_predictions(texts, melodies, BATCHED_DURATION)
+    return [res,res2]
 
 
 def predict_full(model, text, melody, duration, topk, topp, temperature, cfg_coef, progress=gr.Progress()):
