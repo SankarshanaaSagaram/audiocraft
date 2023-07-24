@@ -86,7 +86,7 @@ def make_waveform(*args, **kwargs):
 
 
 def load_model(version='melody'):
-    global MODEL
+    global MODEL   
     print("Loading model", version)
     if MODEL is None or MODEL.name != version:
         MODEL = MusicGen.get_pretrained(version)
@@ -201,10 +201,12 @@ def predict_full(model, text, melody, duration, topk, topp, temperature, cfg_coe
             raise gr.Error("Interrupted.")
     MODEL.set_custom_progress_callback(_progress)
 
-    outs = _do_predictions(
+    # Call _do_predictions twice to generate two audio files
+    outs, outs2 = _do_predictions(
         [text], [melody], duration, progress=True,
         top_k=topk, top_p=topp, temperature=temperature, cfg_coef=cfg_coef)
-    return outs[0]
+
+    return outs[0], outs2[0]
 
 
 def toggle_audio_src(choice):
